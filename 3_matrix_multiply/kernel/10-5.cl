@@ -1,4 +1,5 @@
-﻿kernel void matrixMultiplyKernel(int M, int N, int K, const global float *a, const global float *b, global float *c){	
+#define BS 3
+kernel void matrixMultiplyKernel(int M, int N, int K, const global float *a, const global float *b, global float *c){	
 	int bx = get_group_id(0);
 	int by = get_group_id(1);
 	int tx = get_local_id(0);

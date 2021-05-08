@@ -1,41 +1,38 @@
-#include<stdio.h>
-#include<stdlib.h>
+#include <assert.h>
+#include <fstream>
+#include <iostream>
+#include <istream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <io.h>
 #include<CL/cl.h>
 
 #define ARRAY_SIZE 10
 
-char *ReadKernelSourceFile(const char *filename, size_t *length)
-{
-	FILE *file = NULL;
-	size_t sourceLength;
-	char* sourceString;
-	size_t ret;
-  fopen_s(&file, filename, "rb");
-	//file = fopen_s(filename, "rb");
-	if (file == NULL)
-	{
-		printf("%s at %d : Can't open %s\n", __FILE__, __LINE__ - 2, filename);
-		return NULL;
-	}
-	fseek(file, 0, SEEK_END);
-	sourceLength = ftell(file);  //  用于得到文件位置指针当前位置相对于文件首的偏移字节数。
-	fseek(file, 0, SEEK_SET);
-	sourceString = (char*)malloc(sourceLength + 1);
-	sourceString[0] = '\0';
-	ret = fread(sourceString, sourceLength, 1, file);
-	if (ret == 0)\
-	{
-		printf("%s at %d : Can't read source %s\n", __FILE__, __LINE__ - 2, filename);
-		return NULL;
-	}
-	fclose(file);
-	if (length != 0)
-	{
-		*length = sourceLength;
-	}
-	sourceString[sourceLength] = '\0';
-	return sourceString;
-}
+using std::ifstream;
+using std::ios;
+using std::ostringstream;
+using std::string;
+using std::vector;
+using std::shared_ptr;
+
+std::shared_ptr<char> readKernelFile(std::string strSource) {
+  std::ifstream kernelfile(strSource);
+  if (kernelfile.fail()) {
+    std::cout << "Can not open it " << std::endl;
+    // throw new std::runtime_error("IO stream corrupted");
+  }
+  std::string shaderStr((std::istreambuf_iterator<char>(kernelfile)),
+                        std::istreambuf_iterator<char>());
+  kernelfile.close();
+  size_t len = shaderStr.length();
+  std::shared_ptr<char> shaderPtr(new char[len + 1]);
+  strcpy_s(shaderPtr.get(), len + 1, shaderStr.c_str());
+  std::cout << shaderStr << std::endl;
+  return shaderPtr;
+} 
 
 cl_context CreateContext(cl_device_id *device)
 {
@@ -87,9 +84,9 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
 {
 	cl_int errNum;
 	cl_program program;
-	size_t program_length;
-	char *const source = ReadKernelSourceFile(fileName, &program_length);
-
+	//char *const source = ReadKernelSourceFile(fileName, &program_length);
+  shared_ptr<char> src_ptr = readKernelFile(fileName);
+  char *const source = src_ptr.get();
 	program = clCreateProgramWithSource(context, 1, (const char **)&source, NULL, NULL);
 
 	if (program == NULL)
@@ -109,17 +106,31 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
 	return program;
 }
 
-bool CreateMemObjects(cl_context context, cl_mem memObjects[3], float* a, float* b)
+bool CreateMemObjects(cl_context context, cl_mem memObjects[3], float* a, unsigned int size_a, float* b, unsigned int size_b, 
+	                    unsigned int size_c)
 {
-	memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float)*ARRAY_SIZE, a, NULL);
-	memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float)*ARRAY_SIZE, b, NULL);
-	memObjects[2] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*ARRAY_SIZE, NULL, NULL);
+  memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                 sizeof(float) * size_a, a, NULL);
+  memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                 sizeof(float) * size_b, b, NULL);
+  memObjects[2] = clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                 sizeof(float) * size_c, NULL, NULL);
 	if (memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL)
 	{
 		printf("Error creating memory objects.");
 		return false;
 	}
 	return true;
+}
+
+void initMatrix(float *matrix, unsigned int m, unsigned int n) { 
+	for (unsigned int i = 0; i < m; i++) {
+    for (unsigned int j = 0; j < n; j++) {
+      matrix[i*n + j] = i+j;
+      std::cout << matrix[i * n + j] << " ";
+		}
+    std::cout << "\n";
+	}
 }
 
 void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program program, cl_kernel kernel, cl_mem memObjects[3])
@@ -170,7 +181,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	kernel = clCreateKernel(program, "vector_add", NULL);
+	kernel = clCreateKernel(program, "matrix_multiply", NULL);
 	if (kernel == NULL)
 	{
 		printf("Failed to create kernel");
@@ -178,15 +189,20 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	float result[ARRAY_SIZE];
-	float a[ARRAY_SIZE];
-	float b[ARRAY_SIZE];
-	for (int i = 0; i < ARRAY_SIZE; ++i)
-	{
-		a[i] = (float)i;
-		b[i] = (float)(i * 2);
-	}
-	if (!CreateMemObjects(context, memObjects, a, b))
+	int M = 8;
+	int C = 9;
+	int N = 10;
+	shared_ptr<float> matrixA(new float[M*C]);
+  shared_ptr<float> matrixB(new float[C*N]);
+  shared_ptr<float> matrixC(new float[M*N]);
+
+	std::cout << "initial matrixA:" << std::endl;
+	initMatrix(matrixA.get(), M, C);
+  std::cout << "initial matrixB:" << std::endl;
+  initMatrix(matrixB.get(), C, N);
+  std::cout << "initial matrixC:" << std::endl;
+  initMatrix(matrixC.get(), M, N);
+	if (!CreateMemObjects(context, memObjects, matrixA.get(), M*C, matrixB.get(), C*N, M*N))
 	{
 		Cleanup(context, commandQueue, program, kernel, memObjects);
 		return 1;
@@ -194,8 +210,11 @@ int main(int argc, char** argv)
 
 	//  clSetKernelArg()
 	errNum = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memObjects[0]);
-	errNum |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[1]);
-	errNum |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[2]);
+    errNum |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[0]);
+    errNum |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[0]);
+    errNum |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[0]);
+	errNum |= clSetKernelArg(kernel, 4, sizeof(cl_mem), &memObjects[1]);
+	errNum |= clSetKernelArg(kernel, 5, sizeof(cl_mem), &memObjects[2]);
 	if(errNum != CL_SUCCESS)
 	{
 		printf("Error setting kernel arguments.");
