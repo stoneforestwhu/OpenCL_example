@@ -174,7 +174,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	program = CreateProgram(context, device, "kernel/vecAdd.cl");
+	program = CreateProgram(context, device, "kernel/matrix_multiply.cl");
 	if (program == NULL)
 	{
 		Cleanup(context, commandQueue, program, kernel, memObjects);
@@ -189,9 +189,9 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	int M = 8;
+	int M = 9;
 	int C = 9;
-	int N = 10;
+	int N = 9;
 	shared_ptr<float> matrixA(new float[M*C]);
   shared_ptr<float> matrixB(new float[C*N]);
   shared_ptr<float> matrixC(new float[M*N]);
@@ -202,17 +202,26 @@ int main(int argc, char** argv)
   initMatrix(matrixB.get(), C, N);
   std::cout << "initial matrixC:" << std::endl;
   initMatrix(matrixC.get(), M, N);
-	if (!CreateMemObjects(context, memObjects, matrixA.get(), M*C, matrixB.get(), C*N, M*N))
-	{
-		Cleanup(context, commandQueue, program, kernel, memObjects);
-		return 1;
-	}
+
+	cl_mem matrixMemObj[3];
+  memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     sizeof(float) * M * C, matrixA.get(), NULL);
+  memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                           sizeof(float) * C * N, matrixB.get(), NULL);
+  memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     sizeof(float) * M * N, matrixC.get(), NULL);
+
+	if (memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL) {
+    printf("Error creating memory objects.");
+    Cleanup(context, commandQueue, program, kernel, memObjects);
+    return false;
+  }
 
 	//  clSetKernelArg()
-	errNum = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memObjects[0]);
-    errNum |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[0]);
-    errNum |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[0]);
-    errNum |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[0]);
+	errNum = clSetKernelArg(kernel, 0, sizeof(int), &M);
+  errNum |= clSetKernelArg(kernel, 1, sizeof(int), &N);
+  errNum |= clSetKernelArg(kernel, 2, sizeof(int), &C);
+  errNum |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[0]);
 	errNum |= clSetKernelArg(kernel, 4, sizeof(cl_mem), &memObjects[1]);
 	errNum |= clSetKernelArg(kernel, 5, sizeof(cl_mem), &memObjects[2]);
 	if(errNum != CL_SUCCESS)
@@ -221,11 +230,11 @@ int main(int argc, char** argv)
 		Cleanup(context, commandQueue, program, kernel, memObjects);
 		return 1;
 	}
-	size_t globalWorkSize[1] = { ARRAY_SIZE };
-	size_t localWorkSize[1] = { 1 };
+	size_t globalWorkSize[2] = { 9, 9 };
+	size_t localWorkSize[2] = { 3, 3 };
 	errNum = clEnqueueNDRangeKernel(commandQueue,   
 		                            kernel, 
-		                            1,                //   work_dim 只能是1到3之间
+		                            2,                //   work_dim 只能是1到3之间
 		                            NULL,             //   global_work_offset
 		                            globalWorkSize,   //   global_work_size
 		                            localWorkSize,    //   local_work_size
@@ -239,7 +248,8 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	errNum = clEnqueueReadBuffer(commandQueue, memObjects[2], CL_TRUE, 0, ARRAY_SIZE * sizeof(float), result, 0, NULL, NULL);
+	float result[9][9];
+	errNum = clEnqueueReadBuffer(commandQueue, memObjects[2], CL_TRUE, 0, 81 * sizeof(float), result, 0, NULL, NULL);
 	if (errNum != CL_SUCCESS)
 	{
 		printf("Error reading result buffer.");
@@ -247,10 +257,28 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	for (int i = 0; i < ARRAY_SIZE; ++i)
-	{
-		printf("i=%d:%f\n", i, result[i]);
-	}
+	for (int i = 0; i < 9; ++i) {
+    for (int j = 0; j < 9; ++j) {
+      printf("%f ", result[i][j]);
+    }
+    printf("\n");
+  }
+  
+	printf("\n");
+	
+	float refVal[9][9] = {0.0};
+	float* ma = matrixA.get();
+	float* mb = matrixB.get();
+  for (int i = 0; i < 9; ++i) {
+    for (int j = 0; j < 9; ++j) {
+      for (int t = 0; t < 9; ++t)
+        refVal[i][j] += (*(ma + i * 9 + t)) * (*(mb + t * 9 + j));
+      printf("%f ", refVal[i][j]);
+		}
+    printf("\n");
+  }
+
+
 	printf("Executed program successfully.");
 	Cleanup(context, commandQueue, program, kernel, memObjects);
 	return 0;
