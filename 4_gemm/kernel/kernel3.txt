@@ -1,3 +1,15 @@
+#ifndef WPT
+#define WPT 4
+#endif
+
+#ifndef TS
+#define TS 8
+#endif
+
+#ifndef RTS
+#define RTS 2
+#endif
+
 // Increased the amount of work-per-thread by a factor WPT
 __kernel void myGEMM3(const int M, const int N, const int K,
                       const __global float* A,
