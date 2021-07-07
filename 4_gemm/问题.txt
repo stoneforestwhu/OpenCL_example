@@ -1,0 +1,1 @@
+shared memory是每个PB独有的还是所有PB共享的。

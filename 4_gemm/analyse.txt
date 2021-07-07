@@ -1,0 +1,5 @@
+kernel3.txt的想法是改变每个work-item包含的数的个数，没有谁规定说一个work-item只能包含一个数，事实上每个work-item想包含几个数就包含几个数。kernel3.txt的做法是work-item的数量包含4个数(同一行的4个数， 所以work-item的大小是(1, 4))，所以在work-group的划分上就分为一下几种：
+global size: 64 16
+local size:  8  2 (16个work-item，从每个workgroup的形状来看，依旧是8*8个数，每4个数组成一个work-item，一共16个work-item)
+
+
