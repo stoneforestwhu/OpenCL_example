@@ -68,13 +68,12 @@ std::shared_ptr<char> readKernelFile(std::string strSource) {
 }
 
 template<typename T>
-void writeDataToFile(void *data, string fileName, size_t dataSize) {
+void writeDataToFile(void *data, string fileName, size_t dataSize, size_t column = 4) {
   size_t elementSize = dataSize/4;  //  float or int always contains 4 bytes
-  size_t row = elementSize / 4; 
-  size_t coloum = 4;
+  size_t row = elementSize / column;
   size_t extraRow = 0;
-  size_t extraColumn = (elementSize) % 4;
-  if (dataSize % 16 != 0)
+  size_t extraColumn = (elementSize) % column;
+  if (elementSize % column != 0)
     extraRow = 1;
 
   T* dataToWrite = (T*)data;
@@ -83,8 +82,8 @@ void writeDataToFile(void *data, string fileName, size_t dataSize) {
     fmtStr = "%f";
   std::fstream outFile(fileName, ios::out);
   for (unsigned int i = 0; i < row; i++) {
-    for (unsigned int j = 0; j < coloum; j++) {
-      T aVal = dataToWrite[i * coloum + j];
+    for (unsigned int j = 0; j < column; j++) {
+      T aVal = dataToWrite[i * column + j];
       char aStr[512];
       sprintf_s(aStr, fmtStr.c_str(), aVal);
       outFile << aStr << " ";
@@ -94,7 +93,7 @@ void writeDataToFile(void *data, string fileName, size_t dataSize) {
 
   if (extraRow)  // data may not always contain times of 4 int.
     for (unsigned int i = 0; i < extraColumn; ++i) {
-      T aVal = dataToWrite[row * coloum + i];
+      T aVal = dataToWrite[row * column + i];
       char aStr[512];
       sprintf_s(aStr, fmtStr.c_str(), aVal);
       outFile << aStr << " ";

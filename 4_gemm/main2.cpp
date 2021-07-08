@@ -2,8 +2,7 @@
 
 #define uint unsigned int
 
-
-int main(){
+int main() {
   cl_int errNum;
   // platforms_0=cl_platform_id[1](0)
   cl_platform_id platforms_0[1];
@@ -18,75 +17,73 @@ int main(){
   cl_command_queue cmdQue_0 = clCreateCommandQueue(ctx_0, devs_0[0], 0, NULL);
 
   std::shared_ptr<char> clProg_0_src_0_shared_ptr =
-      readKernelFile("kernel/kernel3.txt");
+      readKernelFile("kernel/kernel2.txt");
   char *clProg_0_src_0 = clProg_0_src_0_shared_ptr.get();
   char *clProg_0_srcPtr_0[1] = {clProg_0_src_0};
   cl_program clProg_0 = clCreateProgramWithSource(
       ctx_0, 1, (const char **)clProg_0_srcPtr_0, NULL, NULL);
   clBuildProgram(clProg_0, 0, NULL, NULL, NULL, NULL);
-  cl_kernel kernel_0 = clCreateKernel(clProg_0, "myGEMM3", NULL);
+  cl_kernel kernel_0 = clCreateKernel(clProg_0, "myGEMM2", NULL);
 
-  float A[64][64];
-  int initVal = 0;
-  for (unsigned int i = 0; i < 64; ++i) {
-    for (unsigned int j = 0; j < 64; ++j) {
-      A[i][j] = initVal++; 
+  const int M = 64;
+  const int K = 32;
+  const int N = 64;
+
+  float A[M][K];
+  float initVal = 0.0f;
+  for (unsigned int i = 0; i < M; ++i) {
+    for (unsigned int j = 0; j < K; ++j) {
+      A[i][j] = initVal++;
     }
   }
 
-  float B[64][64];
-  for (unsigned int i = 0; i < 64; ++i) {
-    for (unsigned int j = 0; j < 64; ++j) {
+  float B[K][N];
+  for (unsigned int i = 0; i < K; ++i) {
+    for (unsigned int j = 0; j < N; ++j) {
       B[i][j] = initVal--;
     }
   }
-  float C[64][64];
-  for (unsigned int i = 0; i < 64; ++i) {
-    for (unsigned int j = 0; j < 64; ++j) {
-      B[i][j] = 0;
+  float C[M][N];
+  for (unsigned int i = 0; i < M; ++i) {
+    for (unsigned int j = 0; j < N; ++j) {
+      C[i][j] = 0;
     }
   }
-  float Ref[64][64];
-  for (unsigned int i = 0; i < 64; ++i) {
-    for (unsigned int j = 0; j < 64; ++j) {
+  float Ref[M][N];
+  for (unsigned int i = 0; i < M; ++i) {
+    for (unsigned int j = 0; j < N; ++j) {
       Ref[i][j] = 0;
-      for (unsigned int k = 0; k < 64; ++k) {
+      for (unsigned int k = 0; k < K; ++k) {
         Ref[i][j] += A[i][k] * B[k][j];
       }
     }
   }
 
-
   cl_mem buf_0 = clCreateBuffer(ctx_0, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                0x4000, A, NULL);
+                                M * K * 4, A, NULL);
   cl_mem buf_1 = clCreateBuffer(ctx_0, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                0x4000, B, NULL);
+                                N * K * 4, B, NULL);
   cl_mem buf_2 = clCreateBuffer(ctx_0, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                0x4000, C, NULL);
+                                M * N * 4, C, NULL);
 
-  uint ptr_3[1] = {0x40};
-  errNum = clSetKernelArg(kernel_0, 0, 4, ptr_3);
-
-  uint ptr_4[1] = {0x40};
-  errNum |= clSetKernelArg(kernel_0, 1, 4, ptr_4);
-
-  uint ptr_5[1] = {0x40};
-  errNum |= clSetKernelArg(kernel_0, 2, 4, ptr_5);
+  errNum = clSetKernelArg(kernel_0, 0, 4, &M);
+  errNum |= clSetKernelArg(kernel_0, 1, 4, &N);
+  errNum |= clSetKernelArg(kernel_0, 2, 4, &K);
 
   void *ptr_6[1];
   ptr_6[0] = &buf_0;
-  errNum |= clSetKernelArg(kernel_0, 3, 8, ptr_6[0]);
+  errNum |= clSetKernelArg(kernel_0, 3, 8, &buf_0);
 
   void *ptr_7[1];
   ptr_7[0] = &buf_1;
-  errNum |= clSetKernelArg(kernel_0, 4, 8, ptr_7[0]);
+  errNum |= clSetKernelArg(kernel_0, 4, 8, &buf_1);
 
   void *ptr_8[1];
   ptr_8[0] = &buf_2;
-  errNum |= clSetKernelArg(kernel_0, 5, 8, ptr_8[0]);
+  errNum |= clSetKernelArg(kernel_0, 5, 8, &buf_2);
 
-  size_t gSize_0[2] = {0x40, 0x10};  //  matrix size == 64*64
-  size_t lSize_0[2] = {0x8, 0x2};    //  local size == 8*8
+  size_t gSize_0[2] = {M, N};     //  matrix size == 64*64
+  size_t lSize_0[2] = {0x8, 0x8}; //  local size == 8*8
   errNum = clEnqueueNDRangeKernel(cmdQue_0, kernel_0, 2, NULL, gSize_0, lSize_0,
                                   0, NULL, NULL);
 
@@ -95,13 +92,9 @@ int main(){
   clEnqueueReadBuffer(cmdQue_0, buf_2, 1, 0, 0x4000, ptr_9, 0, NULL, NULL);
   // rtCompareDataWithFile(ptr_9, GL_RED, GL_BYTE, 324, -1, "cmp_0.bin")
   std::cout << "begin to compare: " << std::endl;
-  for (unsigned int i = 0; i < 64; ++i) {
-    for (unsigned int j = 0; j < 64; ++j) {
-      if (ptr_9[i * 64 + j] != Ref[i][j])
-        std::cout << "Ref[" << i << "][" << j << "] != ptr_9[" << i << "][" << j << "]" << std::endl;
-    }
-  }
 
+  writeDataToFile<float>(Ref, "ref.txt", 64 * 64 * 4, 64);
+  writeDataToFile<float>(ptr_9, "ptr.txt", 64 * 64 * 4, 64);
   clReleaseMemObject(buf_0);
   clReleaseMemObject(buf_1);
   clReleaseMemObject(buf_2);

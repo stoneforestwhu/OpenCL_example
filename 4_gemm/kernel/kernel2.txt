@@ -1,3 +1,7 @@
+#ifndef TS
+#define TS 8
+#endif
+
 // Tiled and coalesced version
 __kernel void myGEMM2(const int M, const int N, const int K,
                       const __global float* A,
@@ -24,15 +28,15 @@ __kernel void myGEMM2(const int M, const int N, const int K,
         // Load one tile of A and B into local memory
         const int tiledRow = TS*t + row;
         const int tiledCol = TS*t + col;
-        Asub[col][row] = A[tiledCol*M + globalRow];
-        Bsub[col][row] = B[globalCol*K + tiledRow];
+        Asub[row][col] = A[globalRow*K + tiledCol];
+        Bsub[row][col] = B[tiledRow*N + globalCol];
  
         // Synchronise to make sure the tile is loaded
         barrier(CLK_LOCAL_MEM_FENCE);
  
         // Perform the computation for a single tile
         for (int k=0; k<TS; k++) {
-            acc += Asub[k][row] * Bsub[col][k];
+            acc += Asub[row][k] * Bsub[k][col];
         }
  
         // Synchronise before loading the next tile
@@ -40,5 +44,5 @@ __kernel void myGEMM2(const int M, const int N, const int K,
     }
  
     // Store the final result in C
-    C[globalCol*M + globalRow] = acc;
+    C[globalRow*N + globalCol] = acc;
 }

@@ -11,5 +11,14 @@ include_directories(${CUDA_HOME}/include)
 include_directories(inc)
 link_directories(${CUDA_HOME}/lib/x64)
 
-add_executable(test_gemm main.cpp)
-target_link_libraries(test_gemm OpenCL)
+add_executable(test_gemm1 main1.cpp)
+target_link_libraries(test_gemm1 OpenCL)
+
+add_executable(test_gemm2 main2.cpp)
+target_link_libraries(test_gemm2 OpenCL)
+
+add_executable(test_gemm3 main3.cpp)
+target_link_libraries(test_gemm3 OpenCL)
+
+add_executable(test_gemm4 main4.cpp)
+target_link_libraries(test_gemm4 OpenCL)
